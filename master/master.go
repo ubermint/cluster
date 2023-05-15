@@ -22,18 +22,18 @@ type Master struct {
 
 func (m *Master) requestRouter(ctx *fasthttp.RequestCtx) {
 	switch string(ctx.Path()) {
-	case "/get":
-		m.HTTPGet(ctx)
-	case "/set":
-		m.HTTPSet(ctx)
-	case "/update":
-		m.HTTPUpdate(ctx)
-	case "/delete":
-		m.HTTPDelete(ctx)
-	case "/join":
-		m.HTTPJoin(ctx)
-	case "/leave":
-		m.HTTPLeave(ctx)
+		case "/get":
+			m.HTTPGet(ctx)
+		case "/set":
+			m.HTTPSet(ctx)
+		case "/update":
+			m.HTTPUpdate(ctx)
+		case "/delete":
+			m.HTTPDelete(ctx)
+		case "/join":
+			m.HTTPJoin(ctx)
+		case "/leave":
+			m.HTTPLeave(ctx)
 	default:
 		ctx.Error("Not Found", fasthttp.StatusNotFound)
 	}

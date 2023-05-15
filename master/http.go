@@ -22,9 +22,9 @@ type KeyValue struct {
 
 func (m *Master) LogClients(hosts [3]NodeID) {
 	for _, nd := range hosts {
-		info := m.GetNodeInfo(*m.GetNodeByID(nd))
-		s := fmt.Sprintf("[%s](%s)", info, string(nd))
-		if info != "" {
+		if string(nd) != "" {
+			info := m.GetNodeInfo(*m.GetNodeByID(nd))
+			s := fmt.Sprintf("[%s](%s)", info, string(nd))
 			log.Println(s)
 		}
 	}
@@ -106,6 +106,8 @@ func (m *Master) handleGet(kv *KeyValue, hosts [3]NodeID) bool {
 }
 
 func (m *Master) HTTPSet(ctx *fasthttp.RequestCtx) {
+	ctx.Response.Header.Del("Server")
+	ctx.Response.Header.Del("Date")
 	var kv KeyValue
 	err := json.Unmarshal(ctx.PostBody(), &kv)
 	if err != nil {
