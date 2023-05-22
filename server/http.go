@@ -20,7 +20,7 @@ type KeyValue struct {
 func (m *Master) LogClients(clients [3]NodeID) {
 	for _, nd := range clients {
 		s := fmt.Sprintf("[%s](%s)  ", m.GetNodeInfo(*m.GetNodeByID(nd)), string(nd))
-		fmt.Prinln(s)
+		fmt.Println(s)
 	}
 }
 
@@ -73,6 +73,8 @@ func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
 			}
 
 			log.Println("Get from ", m.GetNodeInfo(*rpcHost))
+
+			err = conn.Close()
 			break
 		}
 	}
@@ -141,6 +143,8 @@ func (m *Master) handleSet(w http.ResponseWriter, r *http.Request) {
 				succ += 1
 				log.Println("Replicated to ", m.GetNodeInfo(*rpcHost))
 			}
+
+			err = conn.Close()
 		}
 	}
 
@@ -207,6 +211,8 @@ func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
 				succ += 1
 				log.Println("Update to ", m.GetNodeInfo(*rpcHost))
 			}
+
+			err = conn.Close()
 		}
 	}
 
@@ -266,6 +272,8 @@ func (m *Master) handleDelete(w http.ResponseWriter, r *http.Request) {
 				log.Println("Deleted at ", m.GetNodeInfo(*rpcHost))
 				succ += 1
 			}
+
+			err = conn.Close()
 		}
 	}
 
@@ -297,8 +305,12 @@ func (m *Master) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	m.Nodes = append(m.Nodes, Node{id, ip, port, "Active"})
 	s := fmt.Sprintf("Joined to the cluster: %s:%s (%s)  ", ip, port, id)
-	log.Prinln(s)
+	log.Println(s)
 	m.Ring.AddNode(id)
+
+	if len(m.Nodes) == 6 {
+		log.Println("Replication is enabled.")
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -316,7 +328,7 @@ func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
 	for i, node := range m.Nodes {
 		if node.ID == id {
 			port = node.port
-			nid = node.ID
+			nid = string(node.ID)
 			m.Nodes = append(m.Nodes[:i], m.Nodes[i+1:]...)
 			break
 		}
@@ -325,7 +337,11 @@ func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
 	m.Ring.RemoveNode(id)
 
 	s := fmt.Sprintf("Left the cluster: %s:%s (%s)  ", ip, port, nid)
-	log.Prinln(s)
+	log.Println(s)
+
+	if len(m.Nodes) == 5 {
+		log.Println("Replication is disabled.")
+	}
 
 	w.WriteHeader(http.StatusOK)
 }

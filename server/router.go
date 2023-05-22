@@ -56,6 +56,9 @@ func (hr *HashRing) GetReplicationNodes(key string) [3]NodeID {
 			}
 		}
 
+		hosts[0] = hr.hashMap[hr.sortedHash[0]]
+		hosts[1] = hr.hashMap[hr.sortedHash[1]]
+		hosts[2] = hr.hashMap[hr.sortedHash[2]]
 		return hosts
 	}
 
