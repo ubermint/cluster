@@ -2,25 +2,25 @@ package server
 
 import (
 	"crypto/sha256"
-	"sort"
-	"fmt"
 	"encoding/binary"
+	"fmt"
+	"sort"
 )
 
 type NodeID string
 
 type Node struct {
-    ID   NodeID
-    IP   string
-    port string
-    status string
+	ID     NodeID
+	IP     string
+	port   string
+	status string
 }
 
 func (m *Master) GetNodeByID(nodeID NodeID) *Node {
 	for i, item := range m.Nodes {
 		if item.ID == nodeID {
 			return &m.Nodes[i]
-	    }
+		}
 	}
 	return &Node{}
 }
@@ -29,48 +29,48 @@ func (m *Master) GetNodeInfo(node Node) string {
 	return fmt.Sprintf("%s:%s", node.IP, node.port)
 }
 
-func (hr *HashRing) GetReplicationNodes (key string) [3]NodeID {
+func (hr *HashRing) GetReplicationNodes(key string) [3]NodeID {
 	var hosts = [3]NodeID{NodeID(""), NodeID(""), NodeID("")}
 
 	keyHash := hash(key)
 
 	switch {
-	    case len(hr.sortedHash) == 0:
-	        return hosts
-	    case len(hr.sortedHash) > 0 && len(hr.sortedHash) <= 5:
-	    	for _, item := range hr.sortedHash {
-				if keyHash >= item {
-					hosts[0] = hr.hashMap[item]
-					return hosts
-				}
+	case len(hr.sortedHash) == 0:
+		return hosts
+	case len(hr.sortedHash) > 0 && len(hr.sortedHash) <= 5:
+		for _, item := range hr.sortedHash {
+			if keyHash >= item {
+				hosts[0] = hr.hashMap[item]
+				return hosts
 			}
-			hosts[0] = hr.hashMap[hr.sortedHash[0]]
-	        return  hosts
-	    case len(hr.sortedHash) > 5:
-	        for i, item := range hr.sortedHash {
-				if keyHash >= item {
-					hosts[0] = hr.hashMap[hr.sortedHash[i]]
-					hosts[1] = hr.hashMap[hr.sortedHash[i%len(hr.sortedHash)]]
-					hosts[2] = hr.hashMap[hr.sortedHash[i%len(hr.sortedHash)]]
-					return hosts
-				}
+		}
+		hosts[0] = hr.hashMap[hr.sortedHash[0]]
+		return hosts
+	case len(hr.sortedHash) > 5:
+		for i, item := range hr.sortedHash {
+			if keyHash >= item {
+				hosts[0] = hr.hashMap[hr.sortedHash[i]]
+				hosts[1] = hr.hashMap[hr.sortedHash[(i+1)%len(hr.sortedHash)]]
+				hosts[2] = hr.hashMap[hr.sortedHash[(i+2)%len(hr.sortedHash)]]
+				return hosts
 			}
+		}
 
-			return hosts
-    }
+		return hosts
+	}
 
-    return hosts
+	return hosts
 }
 
 type HashRing struct {
 	sortedHash []uint32
-	hashMap map[uint32]NodeID
+	hashMap    map[uint32]NodeID
 }
 
 func NewHashRing() *HashRing {
 	return &HashRing{
 		sortedHash: make([]uint32, 0, 0),
-		hashMap: make(map[uint32]NodeID),
+		hashMap:    make(map[uint32]NodeID),
 	}
 }
 
@@ -90,11 +90,11 @@ func (hr *HashRing) RemoveNode(nodeID NodeID) {
 	delete(hr.hashMap, nodeHash)
 
 	for i, item := range hr.sortedHash {
-        if item == nodeHash {
-            hr.sortedHash = append(hr.sortedHash[:i], hr.sortedHash[i+1:]...)
-            break
-        }
-    }
+		if item == nodeHash {
+			hr.sortedHash = append(hr.sortedHash[:i], hr.sortedHash[i+1:]...)
+			break
+		}
+	}
 }
 
 func (hr *HashRing) GetNode(key string) NodeID {

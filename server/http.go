@@ -1,9 +1,9 @@
 package server
 
 import (
-    "fmt"
-    "log"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/rpc"
 	"strings"
@@ -18,12 +18,10 @@ type KeyValue struct {
 }
 
 func (m *Master) LogClients(clients [3]NodeID) {
-	fmt.Print("Nodes: ")
 	for _, nd := range clients {
 		s := fmt.Sprintf("[%s](%s)  ", m.GetNodeInfo(*m.GetNodeByID(nd)), string(nd))
-		fmt.Print(s)
+		fmt.Prinln(s)
 	}
-	fmt.Println()
 }
 
 func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +109,7 @@ func (m *Master) handleSet(w http.ResponseWriter, r *http.Request) {
 	var clients = m.Ring.GetReplicationNodes(kv.Key)
 	m.LogClients(clients)
 	succ := 0
-	
+
 	for _, client := range clients {
 		if client != NodeID("") {
 			rpcHost := m.GetNodeByID(client)
@@ -176,7 +174,7 @@ func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 	m.LogClients(clients)
 	succ := 0
-	
+
 	for _, client := range clients {
 		if client != NodeID("") {
 			rpcHost := m.GetNodeByID(client)
@@ -186,7 +184,6 @@ func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			}
 
 			conn, err := rpc.Dial("tcp", m.GetNodeInfo(*rpcHost))
-
 
 			if err != nil {
 				log.Println("Failed to connect to RPC server: ", m.GetNodeInfo(*rpcHost))
@@ -299,7 +296,8 @@ func (m *Master) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m.Nodes = append(m.Nodes, Node{id, ip, port, "Active"})
-	log.Println("Joined to the cluster:", ip, port)
+	s := fmt.Sprintf("Joined to the cluster: %s:%s (%s)  ", ip, port, id)
+	log.Prinln(s)
 	m.Ring.AddNode(id)
 
 	w.WriteHeader(http.StatusOK)
@@ -313,10 +311,12 @@ func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
 	defer m.NodesLock.Unlock()
 
 	var port string
+	var nid string
 
 	for i, node := range m.Nodes {
 		if node.ID == id {
 			port = node.port
+			nid = node.ID
 			m.Nodes = append(m.Nodes[:i], m.Nodes[i+1:]...)
 			break
 		}
@@ -324,7 +324,8 @@ func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
 
 	m.Ring.RemoveNode(id)
 
-	log.Println("Left the cluster", ip, port)
+	s := fmt.Sprintf("Left the cluster: %s:%s (%s)  ", ip, port, nid)
+	log.Prinln(s)
 
 	w.WriteHeader(http.StatusOK)
 }

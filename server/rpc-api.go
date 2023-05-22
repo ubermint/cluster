@@ -1,8 +1,8 @@
 package server
 
 import (
-	"net/rpc"
 	_ "log"
+	"net/rpc"
 )
 
 type GetArgs struct {
@@ -88,4 +88,3 @@ func (srv *Server) Update(args UpdateArgs, result *UpdateResult) error {
 	result.Success = true
 	return nil
 }
-

@@ -1,76 +1,76 @@
 package server
 
 import (
-    "fmt"
-    "log"
+	"context"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
-    "os"
-    "os/signal"
-    "syscall"
-    "context"
-    "time"
+	"syscall"
+	"time"
 )
 
 type Master struct {
-    Port int
+	Port int
 	*http.Server
-    Ring *HashRing
-    Nodes     []Node
-    KeyMap map[uint32][3]NodeID
-    NodesLock sync.Mutex
+	Ring      *HashRing
+	Nodes     []Node
+	KeyMap    map[uint32][3]NodeID
+	NodesLock sync.Mutex
 }
 
 func (m *Master) Routes() http.Handler {
-    router := http.NewServeMux()
+	router := http.NewServeMux()
 
-    router.HandleFunc("/set", m.handleSet)
-    router.HandleFunc("/get", m.handleGet)
-    router.HandleFunc("/update", m.handleUpdate)
-    router.HandleFunc("/delete", m.handleDelete)
-    router.HandleFunc("/join", m.handleJoin)
-    router.HandleFunc("/leave", m.handleLeave)
+	router.HandleFunc("/set", m.handleSet)
+	router.HandleFunc("/get", m.handleGet)
+	router.HandleFunc("/update", m.handleUpdate)
+	router.HandleFunc("/delete", m.handleDelete)
+	router.HandleFunc("/join", m.handleJoin)
+	router.HandleFunc("/leave", m.handleLeave)
 
-    return router
+	return router
 }
 
 func (m *Master) Setup() error {
-    m.Nodes = []Node{}
-    m.Ring = NewHashRing()
-    m.KeyMap = make(map[uint32][3]NodeID)
+	m.Nodes = []Node{}
+	m.Ring = NewHashRing()
+	m.KeyMap = make(map[uint32][3]NodeID)
 
 	return nil
 }
 
 func (m *Master) Run() {
 	err := m.Setup()
-    if err != nil {
-        log.Fatal(err)
-    }
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    m.Server = &http.Server{
-        Addr:    fmt.Sprintf(":%d", m.Port),
-        Handler: m.Routes(),
-    }
+	m.Server = &http.Server{
+		Addr:    fmt.Sprintf(":%d", m.Port),
+		Handler: m.Routes(),
+	}
 
-    shutdown := make(chan os.Signal, 1)
-    signal.Notify(shutdown, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-    go func() {
-    	log.Println(fmt.Sprintf("HTTP server listening on port %d.", m.Port))
-        if err := m.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            log.Fatalf("Error: %s\n", err)
-        }
-    }()
+	go func() {
+		log.Println(fmt.Sprintf("HTTP server listening on port %d.", m.Port))
+		if err := m.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Error: %s\n", err)
+		}
+	}()
 
-    <-shutdown
+	<-shutdown
 
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-    if err := m.Shutdown(ctx); err != nil {
-        log.Fatal(err)
-    }
+	if err := m.Shutdown(ctx); err != nil {
+		log.Fatal(err)
+	}
 
-    log.Println("Server stopped")
+	log.Println("Server stopped")
 }
