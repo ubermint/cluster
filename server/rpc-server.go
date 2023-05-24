@@ -85,11 +85,11 @@ func (srv *Server) Setup() error {
 	}
 
 	srv.nodeID = nodeID_env
-	work := fmt.Sprintf("data/%s/", srv.nodeID)
-	log.Println("Storage: ", work)
+	work_dir := fmt.Sprintf("data/%s/", srv.nodeID)
+	log.Println("Storage: ", work_dir)
 
 	srv.db = &storage.Storage{}
-	err := srv.db.New(work)
+	err := srv.db.New(work_dir)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -3,7 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/ubermint/node/server"
+	"github.com/ubermint/kvnode/server"
+	"github.com/ubermint/kvnode/master"
 	"log"
 	"net"
 )
@@ -20,7 +21,7 @@ func main() {
 
 	if *master_flag {
 		fmt.Println("Launching as Master...")
-		var m server.Master
+		var m master.Master
 		m.Port = *port
 
 		m.Run()
