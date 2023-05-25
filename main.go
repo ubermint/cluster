@@ -7,11 +7,29 @@ import (
 	"github.com/ubermint/kvnode/master"
 	"log"
 	"net"
+	"os"
+	"io/ioutil"
 )
 
+type logWriter struct { }
+
+func (writer logWriter) Write(bytes []byte) (int, error) {
+    return fmt.Print("[DEBUG] " + string(bytes))
+}
+
 func main() {
+	log.SetFlags(0)
+    debug := os.Getenv("DEBUG")
+	if debug == "1" {
+		log.SetOutput(new(logWriter))
+		log.Println("DEBUG log enabled")
+	} else {
+		log.SetOutput(ioutil.Discard) 
+	}
+
+
 	port := flag.Int("port", 8000, "the port number")
-	master_flag := flag.Bool("master", false, "master server")
+	master_flag := flag.Bool("master", false, "master server flag")
 
 	flag.Parse()
 
@@ -20,13 +38,13 @@ func main() {
 	}
 
 	if *master_flag {
-		fmt.Println("Launching as Master...")
+		log.Println("Launching as Master...")
 		var m master.Master
 		m.Port = *port
 
 		m.Run()
 	} else {
-		fmt.Println("Launching as Node...")
+		log.Println("Launching as Node...")
 
 		addr := ""
 		addr = flag.Args()[0]

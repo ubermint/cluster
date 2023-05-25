@@ -3,58 +3,75 @@ package master
 import (
 	"encoding/json"
 	"fmt"
+	. "github.com/ubermint/kvnode/server"
+	"github.com/valyala/fasthttp"
 	"log"
-	"net/http"
 	"net/rpc"
 	"strings"
-	. "github.com/ubermint/kvnode/server"
 )
 
+// StatusOK                           = 200 // RFC 7231, 6.3.1
 // StatusBadRequest                   = 400 // RFC 9110, 15.5.1
 // StatusNotFound                     = 404 // RFC 9110, 15.5.5
+// StatusInternalServerError          = 500 // RFC 7231, 6.6.1
 
 type KeyValue struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-func (m *Master) LogClients(clients [3]NodeID) {
-	for _, nd := range clients {
+func (m *Master) LogClients(hosts [3]NodeID) {
+	for _, nd := range hosts {
 		s := fmt.Sprintf("[%s](%s)  ", m.GetNodeInfo(*m.GetNodeByID(nd)), string(nd))
-		fmt.Println(s)
+		log.Println(s)
 	}
 }
 
-func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
-	m.ReqLock.Lock()
-	defer m.ReqLock.Unlock()
-
-	key := r.URL.Query().Get("key")
-
+func (m *Master) HTTPGet(ctx *fasthttp.RequestCtx) {
+	key := string(ctx.QueryArgs().Peek("key"))
 	log.Println(fmt.Sprintf("GET(%s)", key))
 
-	var response KeyValue
+	kv := &KeyValue{
+		Key:   key,
+		Value: "",
+	}
 
-	var clients [3]NodeID
-    value, ok := m.KeyMap.Load(hash(key))
-    if ok {
-        clients = value.([3]NodeID)
-    } else {
+	var hosts [3]NodeID
+	hh, ok := m.KeyMap.Load(hash(key))
+	if ok {
+		hosts = hh.([3]NodeID)
+		m.LogClients(hosts)
+	} else {
 		log.Println("No such key in KeyMap")
-		w.WriteHeader(http.StatusNotFound)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		return
 	}
 
-	m.LogClients(clients)
+	ok = m.handleGet(kv, hosts)
+	if !ok {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
 
-	for _, client := range clients {
-		if client != NodeID("") {
-			rpcHost := m.GetNodeByID(client)
+	responseJSON, err := json.Marshal(kv)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.Write(responseJSON)
+}
+
+func (m *Master) handleGet(kv *KeyValue, hosts [3]NodeID) bool {
+	for _, host := range hosts {
+		if host != NodeID("") {
+			rpcHost := m.GetNodeByID(host)
 
 			if rpcHost.status == "Failed" {
 				continue
 			}
-
 			conn, err := rpc.Dial("tcp", m.GetNodeInfo(*rpcHost))
 
 			if err != nil {
@@ -64,7 +81,7 @@ func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
 			}
 
 			getArgs := GetArgs{
-				Key: []byte(key),
+				Key: []byte(kv.Key),
 			}
 			var getResult GetResult
 
@@ -74,56 +91,45 @@ func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			response = KeyValue{
-				Key:   key,
-				Value: string(getResult.Value),
-			}
-
 			log.Println("Get from ", m.GetNodeInfo(*rpcHost))
-
 			err = conn.Close()
-			break
+			kv.Value = string(getResult.Value)
+
+			return true
 		}
 	}
 
-	blank := KeyValue{}
-
-	if response == blank {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	jsonResponse, err := json.Marshal(response)
-	if err != nil {
-		log.Println("Error marshaling JSON:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(jsonResponse)
+	return false
 }
 
-func (m *Master) handleSet(w http.ResponseWriter, r *http.Request) {
-	m.ReqLock.Lock()
-	defer m.ReqLock.Unlock()
+func (m *Master) HTTPSet(ctx *fasthttp.RequestCtx) {
 	var kv KeyValue
-	err := json.NewDecoder(r.Body).Decode(&kv)
+	err := json.Unmarshal(ctx.PostBody(), &kv)
 	if err != nil {
-		log.Println("Error decoding JSON:", err)
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		log.Println("Invalid JSON payload")
 		return
 	}
 
 	log.Println(fmt.Sprintf("SET(%s,%s)", kv.Key, kv.Value))
-	var clients = m.Ring.GetReplicationNodes(kv.Key)
-	m.LogClients(clients)
-	succ := 0
+	var hosts = m.Ring.GetReplicationNodes(kv.Key)
+	m.LogClients(hosts)
 
-	for _, client := range clients {
-		if client != NodeID("") {
-			rpcHost := m.GetNodeByID(client)
+	ok := m.handleSet(&kv, hosts)
+	if !ok {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
+
+	m.KeyMap.Store(hash(kv.Key), hosts)
+	ctx.SetStatusCode(fasthttp.StatusOK)
+}
+
+func (m *Master) handleSet(kv *KeyValue, hosts [3]NodeID) bool {
+	res := 0
+	for _, host := range hosts {
+		if host != NodeID("") {
+			rpcHost := m.GetNodeByID(host)
 
 			if rpcHost.status == "Failed" {
 				continue
@@ -149,55 +155,57 @@ func (m *Master) handleSet(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if setResult.Success {
-				succ += 1
-				log.Println("Replicated to ", m.GetNodeInfo(*rpcHost))
+				res += 1
+				log.Println("Set to ", m.GetNodeInfo(*rpcHost))
 			}
 
 			err = conn.Close()
 		}
 	}
 
-	if succ == 0 {
+	if res == 0 {
 		log.Println("SET Failed")
-		w.WriteHeader(http.StatusNotFound)
-		return
+		return false
 	}
-
-
-	m.KeyMap.Store(hash(kv.Key), clients)
-
-	w.WriteHeader(http.StatusOK)
+	return true
 }
 
-func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
-	m.ReqLock.Lock()
-	defer m.ReqLock.Unlock()
+func (m *Master) HTTPUpdate(ctx *fasthttp.RequestCtx) {
 	var kv KeyValue
-	err := json.NewDecoder(r.Body).Decode(&kv)
+	err := json.Unmarshal(ctx.PostBody(), &kv)
 	if err != nil {
-		log.Println("Error decoding JSON:", err)
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		log.Println("Invalid JSON payload")
 		return
 	}
 
 	log.Println(fmt.Sprintf("UPDATE(%s,%s)", kv.Key, kv.Value))
 
-	value, ok := m.KeyMap.Load(hash(kv.Key))
-
-	if !ok {
+	var hosts [3]NodeID
+	hh, ok := m.KeyMap.Load(hash(kv.Key))
+	if ok {
+		hosts = hh.([3]NodeID)
+		m.LogClients(hosts)
+	} else {
 		log.Println("No such key in KeyMap")
-		w.WriteHeader(http.StatusNotFound)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		return
 	}
 
-	clients := value.([3]NodeID)
+	ok = m.handleUpdate(&kv, hosts)
+	if !ok {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
 
-	m.LogClients(clients)
-	succ := 0
+	ctx.SetStatusCode(fasthttp.StatusOK)
+}
 
-	for _, client := range clients {
-		if client != NodeID("") {
-			rpcHost := m.GetNodeByID(client)
+func (m *Master) handleUpdate(kv *KeyValue, hosts [3]NodeID) bool {
+	res := 0
+	for _, host := range hosts {
+		if host != NodeID("") {
+			rpcHost := m.GetNodeByID(host)
 
 			if rpcHost.status == "Failed" {
 				continue
@@ -219,12 +227,12 @@ func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 			err = conn.Call("Srv.Update", updateArgs, &updateResult)
 			if err != nil {
-				log.Println("Failed to call Del method:", m.GetNodeInfo(*rpcHost), err)
+				log.Println("Failed to call Update method:", m.GetNodeInfo(*rpcHost), err)
 				continue
 			}
 
 			if updateResult.Success {
-				succ += 1
+				res += 1
 				log.Println("Update to ", m.GetNodeInfo(*rpcHost))
 			}
 
@@ -232,38 +240,50 @@ func (m *Master) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if succ == 0 {
+	if res == 0 {
 		log.Println("UPDATE Failed")
-		w.WriteHeader(http.StatusNotFound)
+		return false
+	}
+
+	return true
+}
+
+func (m *Master) HTTPDelete(ctx *fasthttp.RequestCtx) {
+	key := string(ctx.QueryArgs().Peek("key"))
+	log.Println(fmt.Sprintf("DELETE(%s)", key))
+
+	kv := &KeyValue{
+		Key:   key,
+		Value: "",
+	}
+
+	var hosts [3]NodeID
+	hh, ok := m.KeyMap.Load(hash(kv.Key))
+	if ok {
+		hosts = hh.([3]NodeID)
+		m.LogClients(hosts)
+	} else {
+		log.Println("No such key in KeyMap")
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	ok = m.handleDel(kv, hosts)
+	if !ok {
+		log.Println("DEL Failed")
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
+
+	m.KeyMap.Delete(hash(key))
+	ctx.SetStatusCode(fasthttp.StatusOK)
 }
 
-func (m *Master) handleDelete(w http.ResponseWriter, r *http.Request) {
-	m.ReqLock.Lock()
-	defer m.ReqLock.Unlock()
-	key := r.URL.Query().Get("key")
-
-	log.Println(fmt.Sprintf("DELETE(%s)", key))
-
-	value, ok := m.KeyMap.Load(hash(key))
-    if !ok {
-		log.Println("No such key in KeyMap")
-		w.WriteHeader(http.StatusNotFound)
-		return
-    }
-
-    clients := value.([3]NodeID)
-    m.LogClients(clients)
-
-	
-
-	succ := 0
-	for _, client := range clients {
-		if client != NodeID("") {
-			rpcHost := m.GetNodeByID(client)
+func (m *Master) handleDel(kv *KeyValue, hosts [3]NodeID) bool {
+	res := 0
+	for _, host := range hosts {
+		if host != NodeID("") {
+			rpcHost := m.GetNodeByID(host)
 
 			if rpcHost.status == "Failed" {
 				continue
@@ -278,7 +298,7 @@ func (m *Master) handleDelete(w http.ResponseWriter, r *http.Request) {
 			}
 
 			delArgs := DelArgs{
-				Key: []byte(key),
+				Key: []byte(kv.Key),
 			}
 			var delResult DelResult
 
@@ -291,29 +311,24 @@ func (m *Master) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 			if delResult.Success {
 				log.Println("Deleted at ", m.GetNodeInfo(*rpcHost))
-				succ += 1
+				res += 1
 			}
 
 			err = conn.Close()
 		}
 	}
 
-	if succ == 0 {
-		log.Println("DEL Failed")
-		w.WriteHeader(http.StatusNotFound)
-		return
+	if res == 0 {
+		log.Println("DELETE Failed")
+		return false
 	}
-
-	m.KeyMap.Delete(hash(key))
-
-
-	w.WriteHeader(http.StatusOK)
+	return true
 }
 
-func (m *Master) handleJoin(w http.ResponseWriter, r *http.Request) {
-	id := NodeID(r.URL.Query().Get("id"))
-	ip := strings.Split(r.RemoteAddr, ":")[0]
-	port := r.URL.Query().Get("port")
+func (m *Master) HTTPJoin(ctx *fasthttp.RequestCtx) {
+	id := NodeID(string(ctx.QueryArgs().Peek("id")))
+	ip := strings.Split(ctx.RemoteAddr().String(), ":")[0]
+	port := string(ctx.QueryArgs().Peek("port"))
 
 	m.NodesLock.Lock()
 	defer m.NodesLock.Unlock()
@@ -321,7 +336,7 @@ func (m *Master) handleJoin(w http.ResponseWriter, r *http.Request) {
 	for i, node := range m.Nodes {
 		if node.ID == id {
 			m.Nodes[i].status = "Active"
-			w.WriteHeader(http.StatusOK)
+			ctx.SetStatusCode(fasthttp.StatusOK)
 			return
 		}
 	}
@@ -336,12 +351,12 @@ func (m *Master) handleJoin(w http.ResponseWriter, r *http.Request) {
 		log.Println("Replication is enabled.")
 	}
 
-	w.WriteHeader(http.StatusOK)
+	ctx.SetStatusCode(fasthttp.StatusOK)
 }
 
-func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
-	id := NodeID(r.URL.Query().Get("id"))
-	ip := strings.Split(r.RemoteAddr, ":")[0]
+func (m *Master) HTTPLeave(ctx *fasthttp.RequestCtx) {
+	id := NodeID(string(ctx.QueryArgs().Peek("id")))
+	ip := strings.Split(ctx.RemoteAddr().String(), ":")[0]
 
 	m.NodesLock.Lock()
 	defer m.NodesLock.Unlock()
@@ -368,5 +383,5 @@ func (m *Master) handleLeave(w http.ResponseWriter, r *http.Request) {
 		log.Println("Replication is disabled.")
 	}
 
-	w.WriteHeader(http.StatusOK)
+	ctx.SetStatusCode(fasthttp.StatusOK)
 }

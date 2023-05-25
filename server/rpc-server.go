@@ -94,11 +94,10 @@ func (srv *Server) Setup() error {
 		log.Fatal(err)
 	}
 
-    err = srv.JoinCluster()
-    if err != nil {
-        log.Fatal(err)
-    }
-
+	err = srv.JoinCluster()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	return nil
 }
@@ -121,10 +120,10 @@ func (srv *Server) Run() {
 	go func() {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", srv.Port))
 		if err != nil {
-            //err = srv.LeaveCluster()
-           // if err != nil {
-             //   log.Fatal(err)
-           // }
+			//err = srv.LeaveCluster()
+			// if err != nil {
+			//   log.Fatal(err)
+			// }
 			log.Fatal("Failed to start RPC server:", err)
 		}
 

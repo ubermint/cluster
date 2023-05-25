@@ -1,9 +1,9 @@
 package master
 
 import (
-	"golang.org/x/crypto/blake2b"
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/crypto/blake2b"
 	"sort"
 )
 
@@ -25,11 +25,10 @@ func (m *Master) GetNodeByID(nodeID NodeID) *Node {
 	return &Node{}
 }
 
-
 type HashRing struct {
-	sortedHash []uint32
-	hashMap    map[uint32]NodeID
-	isReplicated  bool
+	sortedHash   []uint32
+	hashMap      map[uint32]NodeID
+	isReplicated bool
 }
 
 func NewHashRing() *HashRing {
@@ -42,7 +41,6 @@ func NewHashRing() *HashRing {
 func (m *Master) GetNodeInfo(node Node) string {
 	return fmt.Sprintf("%s:%s", node.IP, node.port)
 }
-
 
 func (hr *HashRing) GetReplicationNodes(key string) [3]NodeID {
 	var hosts = [3]NodeID{NodeID(""), NodeID(""), NodeID("")}
@@ -78,8 +76,6 @@ func (hr *HashRing) GetReplicationNodes(key string) [3]NodeID {
 	hosts[0] = hr.hashMap[hr.sortedHash[0]]
 	return hosts
 }
-
-
 
 func (hr *HashRing) AddNode(nodeID NodeID) {
 	nodeHash := hash(string(nodeID))
@@ -121,7 +117,6 @@ func hash(data string) uint32 {
 	hashUint32 := binary.BigEndian.Uint32(hash[:4])
 	return hashUint32
 }
-
 
 /*
 
