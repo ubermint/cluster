@@ -22,8 +22,11 @@ type KeyValue struct {
 
 func (m *Master) LogClients(hosts [3]NodeID) {
 	for _, nd := range hosts {
-		s := fmt.Sprintf("[%s](%s)  ", m.GetNodeInfo(*m.GetNodeByID(nd)), string(nd))
-		log.Println(s)
+		info := m.GetNodeInfo(*m.GetNodeByID(nd))
+		s := fmt.Sprintf("[%s](%s)", info, string(nd))
+		if info != "" {
+			log.Println(s)
+		}
 	}
 }
 
