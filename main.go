@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/ubermint/kvnode/server"
-	"github.com/ubermint/kvnode/master"
+	"github.com/ubermint/cluster/server"
+	"github.com/ubermint/cluster/master"
 	"log"
 	"net"
 	"os"

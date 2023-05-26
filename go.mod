@@ -1,4 +1,4 @@
-module github.com/ubermint/kvnode
+module github.com/ubermint/cluster
 
 replace github.com/ubermint/kv => ../kv/
 

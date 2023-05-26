@@ -3,7 +3,7 @@ package master
 import (
 	"encoding/json"
 	"fmt"
-	. "github.com/ubermint/kvnode/server"
+	. "github.com/ubermint/cluster/server"
 	"github.com/valyala/fasthttp"
 	"log"
 	"net/rpc"
