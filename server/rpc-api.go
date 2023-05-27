@@ -1,9 +1,6 @@
 package server
 
-import (
-	_ "log"
-	"net/rpc"
-)
+import "net/rpc"
 
 type GetArgs struct {
 	Key []byte

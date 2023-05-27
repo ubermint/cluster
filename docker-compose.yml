@@ -1,0 +1,27 @@
+# dc up
+# dc up --force-recreate --build --no-deps   
+# dc stop
+# dc down
+
+version: "3"
+services:
+  master:
+    container_name: master
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "DEBUG=1 ./cluster --master --port 80"
+    ports:
+      - "0.0.0.0:8000:80"
+
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "NODE_ID=$(hostname) ./cluster --port 8000 master:80"
+    depends_on:
+      - "master"
+    ports:
+      - 0.0.0.0:8001-9000:8000
+    deploy:
+      replicas: 10

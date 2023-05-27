@@ -7,7 +7,7 @@
 
 Модуль `server` реалізує серверну логіку, логіку API, мережеві протоколи та роботу з локальними сховищами, а саме:
 - `http`: API розподіленого сховища, реалізує методи Get, Set, Del, Update та методи Join і Leave;
-- `rpc-api`: та `rpc-server`: реалізую роботу локального серверу, який підключається до кластеру та надає інтерфейс до локального сховища;
+- `rpc-api`: та `rpc-server`: реалізують роботу локального серверу, який підключається до кластеру та надає інтерфейс до локального сховища;
 - `master`: реалізує роботу Мастер-сервера, який управляє кластером, та відповідає на HTTP-запроси кліентів;
 - `router`: прикладна бібліотека, виконує розподілення за допоомгою consistent hashing алгоритму.
 
@@ -16,32 +16,32 @@
 ### Використання:
 Запус мастер-сервера:
 ```sh
-$ kvnode --master --port 8000 
+$ ./cluster --master --port 8000 
 ```
 
 Запуск вузлів, який автоматично підключається до заданого серверу:
 ```sh
-$ kvnode --port 8001 0.0.0.0:8000
-$ kvnode --port 8002 0.0.0.0:8000
-$ kvnode --port 8003 0.0.0.0:8000
+$ ./cluster --port 8001 0.0.0.0:8000
+$ ./cluster --port 8002 0.0.0.0:8000
+$ ./cluster --port 8003 0.0.0.0:8000
 ```
 
-Тепер можна робити http-запроси до Мастер-серверу:
+Тепер можна робити http-запроси до Мастер-сервера:
 ```curl
-SET
+# SET
 $ curl -X POST 'http://0.0.0.0:8000/set' \
   --header 'Content-Type: application/json' \
   --data '{"key":"test", "value":"test-value"}'
 
-GET
+# GET
 $ curl -is 'http://0.0.0.0:8000/get?key=test' 
 
-UPDATE
+# UPDATE
 $ curl -X POST 'http://0.0.0.0:8000/update' \
   --header 'Content-Type: application/json' \
   --data '{"key":"test", "value":"test-value"}'
 
-DELETE
+# DELETE
 curl -is 'http://0.0.0.0:8000/delete?key=test3'
 ```
 
@@ -56,5 +56,5 @@ curl -is 'http://0.0.0.0:8000/delete?key=test3'
 
 Щоб після рестарту серсер відновився з логів потрібно надати UUID в $NODE_ID:
 ```sh
-$ NODE_ID=7c8134e2-054b-4fa0-96d4-acce995952bd  kvnode --port 8001 0.0.0.0:8000
+$ NODE_ID=7c8134e2-054b-4fa0-96d4-acce995952bd  ./cluster --port 8001 0.0.0.0:8000
 ```

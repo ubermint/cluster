@@ -8,13 +8,16 @@ import (
 	"log"
 	"net"
 	"os"
+	"io"
 	"io/ioutil"
 )
 
 type logWriter struct { }
 
 func (writer logWriter) Write(bytes []byte) (int, error) {
-    return fmt.Print("[DEBUG] " + string(bytes))
+	s := fmt.Sprint("[DEBUG] ", string(bytes))
+
+    return io.WriteString(os.Stderr, s)
 }
 
 func main() {

@@ -119,23 +119,6 @@ func hash(data string) uint32 {
 }
 
 /*
-
-func main() {
-	hr := NewHashRing()
-
-	for i := 0; i < 10; i++ {
-		node := NodeID(fmt.Sprintf("node%d", i))
-		hr.AddNode(node)
-	}
-
-	for i := 0; i < 100; i++ {
-		key := fmt.Sprintf("key%d", i)
-		nodeid := hr.GetNode(key)
-		//hr.AddNode(nodeid)
-		fmt.Println("NodeID for ", key, hash(key), string(nodeid), hash(string(nodeid)))
-	}
-}
-
 func main() {
 	hr := NewHashRing()
 
