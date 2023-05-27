@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/rpc"
 	"strings"
+	"math/rand"
 )
 
 // StatusOK                           = 200 // RFC 7231, 6.3.1
@@ -68,6 +69,11 @@ func (m *Master) HTTPGet(ctx *fasthttp.RequestCtx) {
 }
 
 func (m *Master) handleGet(kv *KeyValue, hosts [3]NodeID) bool {
+	for i := range hosts {
+	    j := rand.Intn(i + 1)
+	    hosts[i], hosts[j] = hosts[j], hosts[i]
+	}
+
 	for _, host := range hosts {
 		if host != NodeID("") {
 			rpcHost := m.GetNodeByID(host)

@@ -10,7 +10,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: sh -c "DEBUG=1 ./cluster --master --port 80"
+    command: sh -c "./cluster --master --port 80"
+    environment:
+      - DEBUG=1
     ports:
       - "0.0.0.0:8000:80"
 
@@ -18,9 +20,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: sh -c "NODE_ID=$(hostname) ./cluster --port 8000 master:80"
+    command: sh -c "NODE_ID=$$(hostname) ./cluster --port 8000 master:80"
     depends_on:
       - "master"
+    environment:
+      - DEBUG=0
     ports:
       - 0.0.0.0:8001-9000:8000
     deploy:
